@@ -139,6 +139,12 @@ int main(int argc, char **argv) {
 		int num_neigbor_points = 10;
 		double std_multiplier = 1.0;
 
+		pcl::PointCloud<pcl::PointXYZRGB>::Ptr og(new pcl::PointCloud<pcl::PointXYZRGB>);
+		og->points.resize(p_pcl_point_cloud->size() / PCD_DOWNSAMPLE);
+		for (auto &it : p_pcl_point_cloud->points) {
+			og->push_back(it);
+		}
+
 		pcl::StatisticalOutlierRemoval<pcl::PointXYZRGB> sor;
 		sor.setInputCloud (p_pcl_point_cloud);
 		sor.setMeanK (num_neigbor_points);
@@ -156,7 +162,19 @@ int main(int argc, char **argv) {
 		}
 
 		std::cout << "Spinning" << std::endl;
-		viewer->spinOnce(10);
+		index = 0;
+		while(true){
+			if(index == 0){
+				viewer->updatePointCloud(output);
+			}else{
+				viewer->updatePointCloud(og);
+			}
+
+			viewer->spinOnce(100);
+			
+			++index;
+			index %= 2;
+		}
     }
 
 	std::cout << "Out of loop..." << std::endl;
