@@ -136,7 +136,7 @@ int main(int argc, char **argv) {
 
 		// Perform the outlier comparisons
 		pcl::PointCloud<pcl::PointXYZRGB>::Ptr output(new pcl::PointCloud<pcl::PointXYZRGB>);
-		int num_neigbor_points = 10;
+		int num_neigbor_points = 5;
 		double std_multiplier = 1.0;
 
 		pcl::PointCloud<pcl::PointXYZRGB>::Ptr og(new pcl::PointCloud<pcl::PointXYZRGB>);
