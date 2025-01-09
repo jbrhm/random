@@ -38,6 +38,8 @@
 // Sample includes
 #include <thread>
 #include <mutex>
+#include <unordered_map>
+#include <utility>
 
 // Namespace
 using namespace sl;
@@ -61,8 +63,17 @@ inline float convertColor(float colorIn);
 
 sl::Resolution cloud_res;
 
-// Main process
+// Custom std::hash
+template<>
+struct std::hash<std::pair<int, int>>
+{
+    std::size_t operator()(const std::pair<int, int>& s) const noexcept
+    {
+        return s.first * 1000000 * s.second; // or use boost::hash_combine
+    }
+};
 
+// Main process
 int main(int argc, char **argv) {
 
     if (argc > 2) {
@@ -139,12 +150,6 @@ int main(int argc, char **argv) {
 		int num_neigbor_points = 5;
 		double std_multiplier = 1.0;
 
-		pcl::PointCloud<pcl::PointXYZRGB>::Ptr og(new pcl::PointCloud<pcl::PointXYZRGB>);
-		og->points.resize(p_pcl_point_cloud->size() / PCD_DOWNSAMPLE);
-		for (auto &it : p_pcl_point_cloud->points) {
-			og->push_back(it);
-		}
-
 		pcl::StatisticalOutlierRemoval<pcl::PointXYZRGB> sor;
 		sor.setInputCloud (p_pcl_point_cloud);
 		sor.setMeanK (num_neigbor_points);
@@ -152,28 +157,32 @@ int main(int argc, char **argv) {
 		sor.filter(*output);
 
 		// Unlock data and update Point cloud
-		std::cout << "Unlock Mutex" << std::endl;
 		mutex_input.unlock();
-
-		std::cout << "Update Data" << std::endl;
 		viewer->updatePointCloud(p_pcl_point_cloud);
 		if(!viewer){
 			std::cout << "Viewer is invalid...\n";
 		}
 
-		std::cout << "Spinning" << std::endl;
-		index = 0;
-		while(true){
-			if(index == 0){
-				viewer->updatePointCloud(output);
-			}else{
-				viewer->updatePointCloud(og);
+		// Create bins
+		std::cout << "Creating Bins...\n";
+		std::unordered_map<std::pair<int, int>, pcl::PointCloud<pcl::PointXYZRGB>::Ptr> bins;
+		for (auto &it : output->points) {
+			if(bins.find(std::pair<int, int>(it.x, it.z)) == bins.end()){
+				bins[std::pair<int, int>(it.x, it.z)] = std::make_shared<pcl::PointCloud<pcl::PointXYZRGB>>();
 			}
+			bins[std::pair<int, int>(it.x, it.z)]->push_back(it);
+		}
 
+		std::cout << "Beginning Cycles...\n";
+		index = 0;
+		auto iter = bins.begin();
+		while(true){
+			if(iter == bins.end()){
+				iter = bins.begin();
+			}
+			viewer->updatePointCloud(iter->second);
 			viewer->spinOnce(100);
-			
-			++index;
-			index %= 2;
+			++iter;
 		}
     }
 
