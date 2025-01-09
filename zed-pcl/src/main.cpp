@@ -22,6 +22,8 @@
  ** This sample demonstrates how to use PCL (Point Cloud Library) with the ZED SDK **
  ************************************************************************************/
 
+// TODO: PointXYZRGBNormal
+
 // ZED includes
 #include <sl/Camera.hpp>
 
@@ -40,6 +42,7 @@
 #include <mutex>
 #include <unordered_map>
 #include <utility>
+#include <string>
 
 // Namespace
 using namespace sl;
@@ -48,6 +51,7 @@ using namespace std;
 // Global instance (ZED, Mat, callback)
 Camera zed;
 Mat data_cloud;
+Mat normal_cloud;
 std::thread zed_callback;
 std::mutex mutex_input;
 bool stop_signal;
@@ -72,6 +76,17 @@ struct std::hash<std::pair<int, int>>
         return s.first * 1000000 * s.second; // or use boost::hash_combine
     }
 };
+
+// Calculate Sample Statistics
+void calcStats(pcl::PointCloud<pcl::PointXYZRGB>::Ptr pc){
+	float avg_y = 0;
+	float avg_normal_y = 0;
+	for(auto &pt : pc->points){
+		avg_y += pt.y;
+	}
+	avg_y /= pc->size();
+	std::cout << "Average Y: " << avg_y << '\n';
+}
 
 // Main process
 int main(int argc, char **argv) {
@@ -182,6 +197,7 @@ int main(int argc, char **argv) {
 				iter = bins.begin();
 			}else{
 				viewer->updatePointCloud(iter->second);
+				calcStats(iter->second);
 			}
 
 			viewer->spinOnce(100);
@@ -189,9 +205,8 @@ int main(int argc, char **argv) {
 		}
     }
 
-	std::cout << "Out of loop..." << std::endl;
-
     // Close the viewer
+	std::cout << "Closed the ZED..." << std::endl;
     viewer->close();
 
     // Close the zed
@@ -222,6 +237,7 @@ void run() {
         if (zed.grab() == ERROR_CODE::SUCCESS) {
             mutex_input.lock(); // To prevent from data corruption
             zed.retrieveMeasure(data_cloud, MEASURE::XYZRGBA, MEM::CPU, cloud_res);
+            zed.retrieveMeasure(normal_cloud, MEASURE::NORMALS, MEM::CPU, cloud_res);
             mutex_input.unlock();
             has_data = true;
         } else
