@@ -178,9 +178,12 @@ int main(int argc, char **argv) {
 		auto iter = bins.begin();
 		while(true){
 			if(iter == bins.end()){
+				viewer->updatePointCloud(output);
 				iter = bins.begin();
+			}else{
+				viewer->updatePointCloud(iter->second);
 			}
-			viewer->updatePointCloud(iter->second);
+
 			viewer->spinOnce(100);
 			++iter;
 		}
