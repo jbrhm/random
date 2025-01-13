@@ -1,3 +1,0 @@
-/home/john/random/zed-pcl/build/CMakeFiles/ZED_with_PCL.dir
-/home/john/random/zed-pcl/build/CMakeFiles/edit_cache.dir
-/home/john/random/zed-pcl/build/CMakeFiles/rebuild_cache.dir

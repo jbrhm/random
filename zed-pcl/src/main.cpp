@@ -62,7 +62,7 @@ int PCD_DOWNSAMPLE = 20;
 void startZED();
 void run();
 void closeZED();
-shared_ptr<pcl::visualization::PCLVisualizer> createRGBVisualizer(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr cloud);
+shared_ptr<pcl::visualization::PCLVisualizer> createRGBVisualizer(pcl::PointCloud<pcl::PointXYZRGBNormal>::ConstPtr cloud);
 inline float convertColor(float colorIn);
 
 sl::Resolution cloud_res;
@@ -78,7 +78,7 @@ struct std::hash<std::pair<int, int>>
 };
 
 // Calculate Sample Statistics
-void calcStats(pcl::PointCloud<pcl::PointXYZRGB>::Ptr pc){
+void calcStats(pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr pc){
 	float avg_y = 0;
 	float avg_normal_y = 0;
 	for(auto &pt : pc->points){
@@ -119,7 +119,7 @@ int main(int argc, char **argv) {
     cloud_res = sl::Resolution(1280, 720);
 
     // Allocate PCL point cloud at the resolution
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr p_pcl_point_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+    pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr p_pcl_point_cloud(new pcl::PointCloud<pcl::PointXYZRGBNormal>);
     p_pcl_point_cloud->points.resize(cloud_res.area() / PCD_DOWNSAMPLE);
 
     // Create the PCL point cloud visualizer
@@ -141,13 +141,14 @@ int main(int argc, char **argv) {
 		//Lock to use the point cloud
 		mutex_input.lock();
 		float *p_data_cloud = data_cloud.getPtr<float>();
+		float *p_normal_cloud = data_cloud.getPtr<float>();
 		int index = 0;
 
 		// Check and adjust points for PCL format
-		// CUDA
 		std::cout << "Adjusting Points" << std::endl;
 		for (auto &it : p_pcl_point_cloud->points) {
 			float X = p_data_cloud[index];
+			float n_X = p_normal_cloud[index];
 			if (!isValidMeasure(X)) // Checking if it's a valid point
 				it.x = it.y = it.z = it.rgb = 0;
 			else {
@@ -199,7 +200,6 @@ int main(int argc, char **argv) {
 				viewer->updatePointCloud(iter->second);
 				calcStats(iter->second);
 			}
-
 			viewer->spinOnce(100);
 			++iter;
 		}
