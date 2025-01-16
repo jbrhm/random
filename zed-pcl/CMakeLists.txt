@@ -1,6 +1,5 @@
-SET(execName ZED_with_PCL)
 CMAKE_MINIMUM_REQUIRED(VERSION 2.4)
-PROJECT(${execName})
+PROJECT(PCL_ANNOTATOR)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -36,9 +35,6 @@ if(PCL_FOUND)
     link_directories(${CUDA_LIBRARY_DIRS})
     link_directories(${PCL_LIBRARY_DIRS})
 
-    FILE(GLOB_RECURSE SRC_FILES src/*.cpp) 
-    ADD_EXECUTABLE(${execName} ${SRC_FILES})
-
     add_definitions(-std=c++17 -g -O3)
     list(REMOVE_ITEM PCL_LIBRARIES "vtkproj4") ## needed if you install pcl from repo (and libproj-dev)
 
@@ -47,8 +43,9 @@ if(PCL_FOUND)
     else()
         SET(ZED_LIBS ${ZED_STATIC_LIBRARIES} ${CUDA_CUDA_LIBRARY} ${CUDA_LIBRARY})
     endif()
-    
-    TARGET_LINK_LIBRARIES(${execName} 
+
+	ADD_EXECUTABLE(SAVE_PCD src/save_pcd.cpp)
+	TARGET_LINK_LIBRARIES(SAVE_PCD 
                             ${SPECIAL_OS_LIBS} 
                             ${ZED_LIBS} 
                             ${OpenCV_LIBRARIES} 
