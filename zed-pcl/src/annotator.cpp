@@ -16,7 +16,6 @@
 // Sample includes
 #include <thread>
 #include <mutex>
-#include <unordered_map>
 #include <utility>
 #include <string>
 
@@ -24,33 +23,23 @@
 using namespace sl;
 using namespace std;
 
-// Global instance (ZED, Mat, callback)
 Camera zed;
 Mat data_cloud;
 Mat normal_cloud;
-std::thread zed_callback;
-std::mutex mutex_input;
-bool stop_signal;
-bool has_data;
+size_t pcd_index = 0;
+std::thread input_thread;
+std::thread render_thread;
+std::mutex mut;
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr grid_pcd;
+shared_ptr<pcl::visualization::PCLVisualizer> viewer;
+pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr pcd;
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr visualizer_pcd;
+bool populated = false;
 
-// Sample functions
-void startZED();
-void run();
-void closeZED();
 shared_ptr<pcl::visualization::PCLVisualizer> createRGBVisualizer(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr cloud);
 inline float convertColor(float colorIn);
 
 sl::Resolution cloud_res;
-
-// Custom std::hash
-template<>
-struct std::hash<std::pair<int, int>>
-{
-	std::size_t operator()(const std::pair<int, int>& s) const noexcept
-	{
-		return s.first * 1000000 * s.second; // or use boost::hash_combine
-	}
-};
 
 // Calculate Sample Statistics
 void calcStats(pcl::PointCloud<pcl::PointXYZRGB>::Ptr pc){
@@ -82,7 +71,8 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr stripNormals(pcl::PointCloud<pcl::PointXY
 
 // Constants
 constexpr size_t SPACING = 4;
-constexpr char const* FILE_NAME = "/home/john/random/zed-pcl/data/test.pcd";
+constexpr size_t NUM_PCD = 2;
+constexpr char const* FILE_NAME[NUM_PCD] = {"/home/john/random/zed-pcl/data/test.pcd", "/home/john/random/zed-pcl/data/test1.pcd"};
 constexpr size_t PC_WIDTH = 1280;
 constexpr size_t PC_HEIGHT = 720;
 constexpr float GRID_DENSITY = 0.01;
@@ -98,6 +88,7 @@ constexpr float RIGHT_CLIP = -2.0;
 constexpr float LEFT_CLIP = 2.0;
 constexpr float FAR_CLIP = 7.0;
 constexpr float NEAR_CLIP = 0.5;
+constexpr float ROVER_HEIGHT = 1.0;
 
 struct CostMap{
 	size_t width;
@@ -118,7 +109,7 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr createGridPcd(CostMap const& cm){
 			float y = h * GRID_RESOLUTION + cm.y - (GRID_HEIGHT / 2.0);
 			for(float dx = 0; dx < GRID_RESOLUTION; dx += GRID_DENSITY){
 				for(float dy = 0; dy < GRID_RESOLUTION; dy += GRID_DENSITY){
-					gridPcd->push_back(pcl::PointXYZRGB{x + dx, y + dy, 0, static_cast<uint8_t>(255 * (cm.data[w * cm.width + h] / 100.0)), static_cast<uint8_t>(255 * (cm.data[w * cm.width + h] / 100.0)), static_cast<uint8_t>(255 * (cm.data[w * cm.width + h] / 100.0))});
+					gridPcd->push_back(pcl::PointXYZRGB{x + dx, y + dy, -ROVER_HEIGHT, static_cast<uint8_t>(255 * (cm.data[w * cm.width + h] / 100.0)), static_cast<uint8_t>(255 * (cm.data[w * cm.width + h] / 100.0)), static_cast<uint8_t>(255 * (cm.data[w * cm.width + h] / 100.0))});
 				}
 			}
 		}
@@ -191,22 +182,17 @@ void fillInCostMap(CostMap& cm, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr con
 		auto& cell = cm.data[i];
 
 		// WRITE ALGORITHM HERE BEGIN
-		std::cout << "pre\n";
 		float avgHeight = 0;
 		for(auto const& pt : bin){
 			avgHeight += pt.heightInCamera;
 		}
-		std::cout << "pre\n";
 		avgHeight /= bin.size();
-		std::cout << "pre\n";
 
 		uint8_t cost = avgHeight > 0 ? HIGH_COST : LOW_COST;
 
 		// WRITE ALGORITHM HERE END
 
-		std::cout << i << " " << cm.data.size() << '\n';
 		cell = cost;
-		std::cout << "pre\n";
 	}
 }
 
@@ -216,76 +202,64 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 
-	pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr pcd (new pcl::PointCloud<pcl::PointXYZRGBNormal>);
+	thread t1([&](){
+		while(true){
+			mut.lock();
+			pcd = std::make_shared<pcl::PointCloud<pcl::PointXYZRGBNormal>>(*(new pcl::PointCloud<pcl::PointXYZRGBNormal>));
 
-	if (pcl::io::loadPCDFile<pcl::PointXYZRGBNormal> (FILE_NAME, *pcd) == -1) {
-		std::cerr << "Error loading point cloud file" << std::endl;
-	}    
+			if (pcl::io::loadPCDFile<pcl::PointXYZRGBNormal> (FILE_NAME[pcd_index], *pcd) == -1) {
+				std::cerr << "Error loading point cloud file" << std::endl;
+			}    
 
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr visualizer_pcd = stripNormals(pcd);
+			visualizer_pcd = stripNormals(pcd);
 
-	shared_ptr<pcl::visualization::PCLVisualizer> viewer = createRGBVisualizer(visualizer_pcd);
-	viewer->setCameraPosition(-5, 0, 1,    1, 0, 0,   0, 0, 1);
-	viewer->setCameraClipDistances(0.1,1000);
+			CostMap cm{};
+			cm.width = std::ceil(GRID_WIDTH / GRID_RESOLUTION);
+			cm.height = std::ceil(GRID_HEIGHT / GRID_RESOLUTION);
+			cm.x = 0;
+			cm.y = 0;
+			cm.data.resize(cm.width * cm.height);
 
-	CostMap cm{};
-	cm.width = std::ceil(GRID_WIDTH / GRID_RESOLUTION);
-	cm.height = std::ceil(GRID_HEIGHT / GRID_RESOLUTION);
-	cm.x = 0;
-	cm.y = 0;
-	cm.data.resize(cm.width * cm.height);
+			std::cout << "Filling in Cost Map...\n";
+			fillInCostMap(cm, pcd);
+			std::cout << "Done Filling in Cost Map...\n";
 
-	std::cout << "Filling in Cost Map...\n";
-	fillInCostMap(cm, pcd);
-	std::cout << "Done Filling in Cost Map...\n";
+			grid_pcd = createGridPcd(cm);
 
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr grid_pcd = createGridPcd(cm);
-	viewer->addPointCloud(grid_pcd, "grid");
+			if(!viewer){
+				viewer = createRGBVisualizer(visualizer_pcd);
+				viewer->addPointCloud(grid_pcd, "grid");
+			}
+			viewer->setCameraPosition(-5, 0, 1,    1, 0, 0,   0, 0, 1);
+			viewer->setCameraClipDistances(0.1,1000);
 
-	while (!viewer->wasStopped()) {
-		viewer->updatePointCloud(visualizer_pcd);
-		viewer->updatePointCloud(grid_pcd, "grid");
-		viewer->spinOnce(100);
-	}
+			populated = true;
+			mut.unlock();
+		}
+	});
+
+	thread t2([&](){
+		while (true) {
+			mut.lock();
+			if(populated){
+				if(viewer->wasStopped()){
+					break;
+				}
+				viewer->updatePointCloud(visualizer_pcd);
+				viewer->updatePointCloud(grid_pcd, "grid");
+				viewer->spinOnce(100);
+			}
+			mut.unlock();
+		}
+	});
+
+	std::cout << "Created Threads...\n";
+	t2.join();
+	std::cout << "Render Thread Finished...\n";
+	t1.join();
+	std::cout << "Input Thread Finished...\n";
 
 	return 0;
-}
-
-/**
- *  This functions start the ZED's thread that grab images and data.
- **/
-void startZED() {
-	// Start the thread for grabbing ZED data
-	stop_signal = false;
-	has_data = false;
-	zed_callback = std::thread(run);
-
-	//Wait for data to be grabbed
-	while (!has_data)
-		sleep_ms(1);
-}
-
-void run() {
-	while (!stop_signal) {
-		if (zed.grab() == ERROR_CODE::SUCCESS) {
-			mutex_input.lock(); // To prevent from data corruption
-			zed.retrieveMeasure(data_cloud, MEASURE::XYZRGBA, MEM::CPU, cloud_res);
-			zed.retrieveMeasure(normal_cloud, MEASURE::NORMALS, MEM::CPU, cloud_res);
-			mutex_input.unlock();
-			has_data = true;
-		} else
-			sleep_ms(1);
-	}
-}
-
-/**
- *  This function frees and close the ZED, its callback(thread) and the viewer
- **/
-void closeZED() {
-	// Stop the thread
-	stop_signal = true;
-	zed_callback.join();
-	zed.close();
 }
 
 /**
