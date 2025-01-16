@@ -183,6 +183,7 @@ void fillInCostMap(CostMap& cm, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr con
 		auto& cell = cm.data[i];
 
 		// WRITE ALGORITHM HERE BEGIN
+
 		float avgHeight = 0;
 		for(auto const& pt : bin){
 			avgHeight += pt.heightInCamera;
