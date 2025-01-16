@@ -71,8 +71,9 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr stripNormals(pcl::PointCloud<pcl::PointXY
 
 // Constants
 constexpr size_t SPACING = 4;
-constexpr size_t NUM_PCD = 2;
-constexpr char const* FILE_NAME[NUM_PCD] = {"/home/john/random/zed-pcl/data/test.pcd", "/home/john/random/zed-pcl/data/test1.pcd"};
+std::vector<std::string> FILE_NAME;
+std::string directoryPath = "/home/john/random/zed-pcl/data";
+
 constexpr size_t PC_WIDTH = 1280;
 constexpr size_t PC_HEIGHT = 720;
 constexpr float GRID_DENSITY = 0.01;
@@ -222,7 +223,7 @@ void keyboardEventOccurred (const pcl::visualization::KeyboardEvent &event,
 		grid_pcd = createGridPcd(cm);
 
 		++pcd_index;
-		pcd_index %= NUM_PCD;
+		pcd_index %= FILE_NAME.size();
 	}
 }
 
@@ -230,6 +231,15 @@ int main(int argc, char **argv) {
 	if (argc > 2) {
 		cout << "Only the path of a SVO can be passed in arg" << endl;
 		return -1;
+	}
+
+	namespace fs = std::filesystem;
+
+	for (const auto & entry : fs::directory_iterator(directoryPath)) {
+		if (entry.is_regular_file()) {
+			std::cout << entry.path() << std::endl; // Full path to the file
+			FILE_NAME.push_back(entry.path());
+		}
 	}
 
 	pcd = std::make_shared<pcl::PointCloud<pcl::PointXYZRGBNormal>>(*(new pcl::PointCloud<pcl::PointXYZRGBNormal>));
