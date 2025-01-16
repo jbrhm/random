@@ -84,6 +84,37 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr stripNormals(pcl::PointCloud<pcl::PointXY
 constexpr size_t SPACING = 4;
 constexpr char const* FILE_NAME = "/home/john/random/zed-pcl/data/test.pcd";
 
+constexpr size_t GRID_WIDTH = 10;
+constexpr size_t GRID_HEIGHT = 10;
+constexpr float GRID_RESOLUTION = 0.5;
+constexpr float GRID_DENSITY = 0.01;
+
+struct CostMap{
+	size_t width;
+	size_t height;
+
+	float x;
+	float y;
+
+	std::vector<uint8_t> data;
+};
+
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr createGridPcd(CostMap const& cm){
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr gridPcd (new pcl::PointCloud<pcl::PointXYZRGB>);
+	for(size_t w = 0; w < cm.width; ++w){
+		for(size_t h = 0; h < cm.height; ++h){
+			float x = w * GRID_RESOLUTION + cm.x - (GRID_WIDTH / 2.0);
+			float y = h * GRID_RESOLUTION + cm.y - (GRID_HEIGHT / 2.0);
+			for(float dx = 0; dx < GRID_RESOLUTION; dx += GRID_DENSITY){
+				for(float dy = 0; dy < GRID_RESOLUTION; dy += GRID_DENSITY){
+					gridPcd->push_back(pcl::PointXYZRGB{x + dx, y + dy, 0, static_cast<uint8_t>(255 * (cm.data[w * cm.width + h] / 100.0)), static_cast<uint8_t>(255 * (cm.data[w * cm.width + h] / 100.0)), static_cast<uint8_t>(255 * (cm.data[w * cm.width + h] / 100.0))});
+				}
+			}
+		}
+	}
+	return gridPcd;
+}
+
 int main(int argc, char **argv) {
     if (argc > 2) {
         cout << "Only the path of a SVO can be passed in arg" << endl;
@@ -102,8 +133,27 @@ int main(int argc, char **argv) {
 	viewer->setCameraPosition(-5, 0, 1,    1, 0, 0,   0, 0, 1);
     viewer->setCameraClipDistances(0.1,1000);
 
+	// Create Fake CostMap
+	CostMap cm{};
+
+	cm.width = std::ceil(GRID_WIDTH / GRID_RESOLUTION);
+	cm.height = std::ceil(GRID_HEIGHT / GRID_RESOLUTION);
+
+	cm.x = 0;
+	cm.y = 0;
+
+	for(size_t w = 0; w < cm.width; ++w){
+		for(size_t h = 0; h < cm.height; ++h){
+			cm.data.push_back(100 * ((w * cm.width + h) % 2));
+		}
+	}
+
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr grid_pcd = createGridPcd(cm);
+	viewer->addPointCloud(grid_pcd, "grid");
+
 	while (!viewer->wasStopped()) {
 		viewer->updatePointCloud(visualizer_pcd);
+		viewer->updatePointCloud(grid_pcd, "grid");
 		viewer->spinOnce(100);
 	}
 
@@ -124,9 +174,6 @@ void startZED() {
         sleep_ms(1);
 }
 
-/**
- *  This function loops to get the point cloud from the ZED. It can be considered as a callback.
- **/
 void run() {
     while (!stop_signal) {
         if (zed.grab() == ERROR_CODE::SUCCESS) {
