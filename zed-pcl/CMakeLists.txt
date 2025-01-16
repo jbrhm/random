@@ -50,4 +50,10 @@ if(PCL_FOUND)
                             ${ZED_LIBS} 
                             ${OpenCV_LIBRARIES} 
                             ${PCL_LIBRARIES})                            
+	ADD_EXECUTABLE(VIEW_PCD src/annotator.cpp)
+	TARGET_LINK_LIBRARIES(VIEW_PCD
+                            ${SPECIAL_OS_LIBS} 
+                            ${ZED_LIBS} 
+                            ${OpenCV_LIBRARIES} 
+                            ${PCL_LIBRARIES})                            
 endif()
