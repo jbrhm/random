@@ -136,12 +136,12 @@ auto mapToGrid(Eigen::Vector3f const& positionInMap, CostMap const& cm) -> int {
 void fillInCostMap(CostMap& cm, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr const& pcd){
 	auto ptr = pcd->points;
 	using R2d = Eigen::Vector2d;
-    using R3d = Eigen::Vector3d;
-    using S3d = Eigen::Quaterniond;
+	using R3d = Eigen::Vector3d;
+	using S3d = Eigen::Quaterniond;
 
-    using R2f = Eigen::Vector2f;
-    using R3f = Eigen::Vector3f;
-    using S3f = Eigen::Quaternionf;
+	using R2f = Eigen::Vector2f;
+	using R3f = Eigen::Vector3f;
+	using S3f = Eigen::Quaternionf;
 
 	struct BinEntry {
 		R3f pointInCamera;
@@ -158,10 +158,10 @@ void fillInCostMap(CostMap& cm, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr con
 		for (std::size_t c = 0; c < PC_WIDTH; c += PCD_DOWNSAMPLE) {
 			auto const& pt = ptr[r * PC_WIDTH + c];
 			if (!(pt.y > RIGHT_CLIP &&
-					pt.y < LEFT_CLIP &&
-					pt.x < FAR_CLIP &&
-					pt.x > NEAR_CLIP)){
-					continue;
+						pt.y < LEFT_CLIP &&
+						pt.x < FAR_CLIP &&
+						pt.x > NEAR_CLIP)){
+				continue;
 			}
 
 			Eigen::Vector3f pointInCamera{pt.x, pt.y, pt.z};
@@ -196,68 +196,76 @@ void fillInCostMap(CostMap& cm, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr con
 	}
 }
 
+void keyboardEventOccurred (const pcl::visualization::KeyboardEvent &event,
+		void* viewer_void)
+{
+	pcl::visualization::PCLVisualizer *viewer = static_cast<pcl::visualization::PCLVisualizer *> (viewer_void);
+	if (event.getKeySym () == "b" && event.keyDown ())
+	{
+		std::cout << "Switching to the " << pcd_index << "th pcd" << std::endl;
+		if (pcl::io::loadPCDFile<pcl::PointXYZRGBNormal> (FILE_NAME[pcd_index], *pcd) == -1) {
+			std::cerr << "Error loading point cloud file" << std::endl;
+		}    
+		visualizer_pcd = stripNormals(pcd);
+
+		CostMap cm{};
+		cm.width = std::ceil(GRID_WIDTH / GRID_RESOLUTION);
+		cm.height = std::ceil(GRID_HEIGHT / GRID_RESOLUTION);
+		cm.x = 0;
+		cm.y = 0;
+		cm.data.resize(cm.width * cm.height);
+
+		std::cout << "Filling in Cost Map...\n";
+		fillInCostMap(cm, pcd);
+		std::cout << "Done Filling in Cost Map...\n";
+
+		grid_pcd = createGridPcd(cm);
+
+		++pcd_index;
+		pcd_index %= NUM_PCD;
+	}
+}
+
 int main(int argc, char **argv) {
 	if (argc > 2) {
 		cout << "Only the path of a SVO can be passed in arg" << endl;
 		return -1;
 	}
 
-	thread t1([&](){
-		while(true){
-			mut.lock();
-			pcd = std::make_shared<pcl::PointCloud<pcl::PointXYZRGBNormal>>(*(new pcl::PointCloud<pcl::PointXYZRGBNormal>));
+	pcd = std::make_shared<pcl::PointCloud<pcl::PointXYZRGBNormal>>(*(new pcl::PointCloud<pcl::PointXYZRGBNormal>));
 
-			if (pcl::io::loadPCDFile<pcl::PointXYZRGBNormal> (FILE_NAME[pcd_index], *pcd) == -1) {
-				std::cerr << "Error loading point cloud file" << std::endl;
-			}    
+	if (pcl::io::loadPCDFile<pcl::PointXYZRGBNormal> (FILE_NAME[pcd_index], *pcd) == -1) {
+		std::cerr << "Error loading point cloud file" << std::endl;
+	}    
 
-			visualizer_pcd = stripNormals(pcd);
+	visualizer_pcd = stripNormals(pcd);
 
-			CostMap cm{};
-			cm.width = std::ceil(GRID_WIDTH / GRID_RESOLUTION);
-			cm.height = std::ceil(GRID_HEIGHT / GRID_RESOLUTION);
-			cm.x = 0;
-			cm.y = 0;
-			cm.data.resize(cm.width * cm.height);
+	CostMap cm{};
+	cm.width = std::ceil(GRID_WIDTH / GRID_RESOLUTION);
+	cm.height = std::ceil(GRID_HEIGHT / GRID_RESOLUTION);
+	cm.x = 0;
+	cm.y = 0;
+	cm.data.resize(cm.width * cm.height);
 
-			std::cout << "Filling in Cost Map...\n";
-			fillInCostMap(cm, pcd);
-			std::cout << "Done Filling in Cost Map...\n";
+	std::cout << "Filling in Cost Map...\n";
+	fillInCostMap(cm, pcd);
+	std::cout << "Done Filling in Cost Map...\n";
 
-			grid_pcd = createGridPcd(cm);
+	grid_pcd = createGridPcd(cm);
 
-			if(!viewer){
-				viewer = createRGBVisualizer(visualizer_pcd);
-				viewer->addPointCloud(grid_pcd, "grid");
-			}
-			viewer->setCameraPosition(-5, 0, 1,    1, 0, 0,   0, 0, 1);
-			viewer->setCameraClipDistances(0.1,1000);
+	if(!viewer){
+		viewer = createRGBVisualizer(visualizer_pcd);
+		viewer->addPointCloud(grid_pcd, "grid");
+	    viewer->registerKeyboardCallback (keyboardEventOccurred, (void*)viewer.get ());
+	}
+	viewer->setCameraPosition(-5, 0, 1,    1, 0, 0,   0, 0, 1);
+	viewer->setCameraClipDistances(0.1,1000);
 
-			populated = true;
-			mut.unlock();
-		}
-	});
-
-	thread t2([&](){
-		while (true) {
-			mut.lock();
-			if(populated){
-				if(viewer->wasStopped()){
-					break;
-				}
-				viewer->updatePointCloud(visualizer_pcd);
-				viewer->updatePointCloud(grid_pcd, "grid");
-				viewer->spinOnce(100);
-			}
-			mut.unlock();
-		}
-	});
-
-	std::cout << "Created Threads...\n";
-	t2.join();
-	std::cout << "Render Thread Finished...\n";
-	t1.join();
-	std::cout << "Input Thread Finished...\n";
+	while(!viewer->wasStopped()){
+		viewer->updatePointCloud(visualizer_pcd);
+		viewer->updatePointCloud(grid_pcd, "grid");
+		viewer->spinOnce(100);
+	}
 
 	return 0;
 }
