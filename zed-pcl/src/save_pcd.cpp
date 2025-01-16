@@ -81,7 +81,6 @@ int main(int argc, char **argv) {
 	Camera zed;
 	Mat data_cloud;
 	Mat normal_cloud;
-	int PCD_DOWNSAMPLE = 20;
 
     // Set configuration parameters
     InitParameters init_params;
@@ -116,6 +115,7 @@ int main(int argc, char **argv) {
 	float* p_data_cloud = data_cloud.getPtr<float>();
 	float* p_normal_cloud = normal_cloud.getPtr<float>();
 	for (std::size_t index = 0; index < cloud_res.area(); ++index) {
+		std::cout << index << '\n';
 		pcl::PointXYZRGBNormal pt{};
 		float X = p_data_cloud[DATA_SPACING * index];
 		if (!isValidMeasure(X)) // Checking if it's a valid point
@@ -130,7 +130,6 @@ int main(int argc, char **argv) {
 			pt.normal_z = p_normal_cloud[NORMAL_SPACING * index + 2];
 		}
 		p_pcl_point_cloud->push_back(std::move(pt));
-		index += PCD_DOWNSAMPLE;
 	}
 
 	pcl::io::savePCDFile(FILE_NAME, *p_pcl_point_cloud);
