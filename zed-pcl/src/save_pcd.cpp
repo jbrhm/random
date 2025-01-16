@@ -116,33 +116,20 @@ int main(int argc, char **argv) {
 	float* p_data_cloud = data_cloud.getPtr<float>();
 	float* p_normal_cloud = normal_cloud.getPtr<float>();
 	for (std::size_t index = 0; index < cloud_res.area(); ++index) {
-		std::cout << "Converting Point " << index << '\n';
 		pcl::PointXYZRGBNormal pt{};
-		std::cout << "Converting Point " << index << '\n';
 		float X = p_data_cloud[DATA_SPACING * index];
-		std::cout << "Converting Point " << index << '\n';
 		if (!isValidMeasure(X)) // Checking if it's a valid point
 			pt.x = pt.y = pt.z = pt.rgb = pt.a = pt.normal_x = pt.normal_y = pt.normal_z = 0;
 		else {
-		std::cout << "Converting Point " << index << '\n';
 			pt.x = X;
-		std::cout << "Converting Point " << index << '\n';
 			pt.y = p_data_cloud[DATA_SPACING * index + 1];
-		std::cout << "Converting Point " << index << '\n';
 			pt.z = p_data_cloud[DATA_SPACING * index + 2];
-		std::cout << "Converting Point " << index << '\n';
 			pt.rgb = convertColor(p_data_cloud[DATA_SPACING * index + 3]); // Convert a 32bits float into a pcl .rgb format
-		std::cout << "Converting Point " << index << '\n';
 			pt.normal_x = p_normal_cloud[NORMAL_SPACING * index];
-		std::cout << "Converting Point " << index << '\n';
 			pt.normal_y = p_normal_cloud[NORMAL_SPACING * index + 1];
-		std::cout << "Converting Point " << index << '\n';
 			pt.normal_z = p_normal_cloud[NORMAL_SPACING * index + 2];
-		std::cout << "Converting Point " << index << '\n';
 		}
-		std::cout << "Converting Point " << index << '\n';
 		p_pcl_point_cloud->push_back(std::move(pt));
-		std::cout << "Converting Point " << index << '\n';
 		index += PCD_DOWNSAMPLE;
 	}
 
