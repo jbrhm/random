@@ -125,7 +125,7 @@ int main(int argc, char **argv) {
     }
     init_params.coordinate_units = UNIT::METER;
     init_params.coordinate_system = COORDINATE_SYSTEM::RIGHT_HANDED_Z_UP_X_FWD;
-    init_params.depth_mode = DEPTH_MODE::PERFORMANCE;
+    init_params.depth_mode = DEPTH_MODE::ULTRA;
 
     // Open the camera
     ERROR_CODE err = zed.open(init_params);

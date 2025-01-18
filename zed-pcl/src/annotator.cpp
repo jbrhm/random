@@ -72,7 +72,7 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr stripNormals(pcl::PointCloud<pcl::PointXY
 // Constants
 constexpr size_t SPACING = 4;
 std::vector<std::string> FILE_NAME;
-std::string directoryPath = "/home/john/random/zed-pcl/data";
+std::string directoryPath = "/home/john/random/zed-pcl/data/ultra";
 
 constexpr size_t PC_WIDTH = 1280;
 constexpr size_t PC_HEIGHT = 720;
@@ -85,14 +85,14 @@ constexpr int8_t UNKNOWN_COST = -1;
 constexpr size_t GRID_WIDTH = 10;
 constexpr size_t GRID_HEIGHT = 10;
 constexpr float GRID_RESOLUTION = 0.5;
-constexpr int PCD_DOWNSAMPLE = 20;
+constexpr int PCD_DOWNSAMPLE = 5;
 constexpr float RIGHT_CLIP = -2.0;
 constexpr float LEFT_CLIP = 2.0;
 constexpr float FAR_CLIP = 7.0;
 constexpr float TOP_CLIP = 3.0;
-constexpr float NEAR_CLIP = 0.5;
+constexpr float NEAR_CLIP = 1;
 constexpr float ROVER_HEIGHT = 1.0;
-constexpr float Z_THRESH = 0.5;
+constexpr float Z_THRESH = 0.85;
 
 struct CostMap{
 	size_t width;
@@ -168,6 +168,8 @@ void fillInCostMap(CostMap& cm, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr con
 						pt.x > NEAR_CLIP)){
 				continue;
 			}
+
+			if(!std::isfinite(pt.x) || !std::isfinite(pt.y) || !std::isfinite(pt.z) || !std::isfinite(pt.normal_x) || !std::isfinite(pt.normal_y) || !std::isfinite(pt.normal_z)) continue;
 
 			Eigen::Vector3f pointInCamera{pt.x, pt.y, pt.z};
 			Eigen::Vector3f normalInCamera{pt.normal_x, pt.normal_y, pt.normal_z};
