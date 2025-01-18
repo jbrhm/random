@@ -79,6 +79,7 @@ constexpr size_t PC_HEIGHT = 720;
 constexpr float GRID_DENSITY = 0.01;
 constexpr uint8_t HIGH_COST = 0;
 constexpr uint8_t LOW_COST = 100;
+constexpr int8_t UNKNOWN_COST = -1;
 
 // Tunables
 constexpr size_t GRID_WIDTH = 10;
@@ -88,8 +89,10 @@ constexpr int PCD_DOWNSAMPLE = 20;
 constexpr float RIGHT_CLIP = -2.0;
 constexpr float LEFT_CLIP = 2.0;
 constexpr float FAR_CLIP = 7.0;
+constexpr float TOP_CLIP = 3.0;
 constexpr float NEAR_CLIP = 0.5;
 constexpr float ROVER_HEIGHT = 1.0;
+constexpr float Z_THRESH = 0.5;
 
 struct CostMap{
 	size_t width;
@@ -161,6 +164,7 @@ void fillInCostMap(CostMap& cm, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr con
 			if (!(pt.y > RIGHT_CLIP &&
 						pt.y < LEFT_CLIP &&
 						pt.x < FAR_CLIP &&
+						pt.z < TOP_CLIP &&
 						pt.x > NEAR_CLIP)){
 				continue;
 			}
@@ -182,18 +186,23 @@ void fillInCostMap(CostMap& cm, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr con
 		Bin& bin = bins[i];
 		auto& cell = cm.data[i];
 
-		// WRITE ALGORITHM HERE BEGIN
-
-		float avgHeight = 0;
-		for(auto const& pt : bin){
-			avgHeight += pt.heightInCamera;
+		if (bin.size() < 16){
+			cell = UNKNOWN_COST;
+			continue;
 		}
-		avgHeight /= bin.size();
 
-		uint8_t cost = avgHeight > 0 ? HIGH_COST : LOW_COST;
+		R3f avgNormal{};
+		for(auto& point : bin){
+			avgNormal.x() += point.normalInCamera.x();
+			avgNormal.y() += point.normalInCamera.y();
+			avgNormal.z() += abs(point.normalInCamera.z());
+		}
 
-		// WRITE ALGORITHM HERE END
+		avgNormal.normalize();
 
+		std::cout << avgNormal << "\n\n" << avgNormal.z() << "\n\n";
+
+		std::int8_t cost = avgNormal.z() <= Z_THRESH ? HIGH_COST : LOW_COST;
 		cell = cost;
 	}
 }
