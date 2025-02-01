@@ -18,6 +18,7 @@
 #include <mutex>
 #include <utility>
 #include <string>
+#include<boost/range/algorithm.hpp>
 
 // Namespace
 using namespace sl;
@@ -92,7 +93,8 @@ constexpr float FAR_CLIP = 7.0;
 constexpr float TOP_CLIP = 3.0;
 constexpr float NEAR_CLIP = 1;
 constexpr float ROVER_HEIGHT = 1.0;
-constexpr float Z_THRESH = 0.85;
+float Z_THRESH = 0.35; // lower = less sensitive
+float Z_PERCENT = 0.99; // higher = less sensitive
 
 struct CostMap{
 	size_t width;
@@ -193,18 +195,29 @@ void fillInCostMap(CostMap& cm, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr con
 			continue;
 		}
 
-		R3f avgNormal{};
-		for(auto& point : bin){
-			avgNormal.x() += point.normalInCamera.x();
-			avgNormal.y() += point.normalInCamera.y();
-			avgNormal.z() += abs(point.normalInCamera.z());
-		}
+		// AVERAGING ALGORITHM
+		// R3f avgNormal{};
+		// for(auto& point : bin){
+		// 	avgNormal.x() += point.normalInCamera.x();
+		// 	avgNormal.y() += point.normalInCamera.y();
+		// 	avgNormal.z() += abs(point.normalInCamera.z());
+		// }
 
-		avgNormal.normalize();
+		// avgNormal.normalize();
 
-		std::cout << avgNormal << "\n\n" << avgNormal.z() << "\n\n";
+		// std::cout << avgNormal << "\n\n" << avgNormal.z() << "\n\n";
 
-		std::int8_t cost = avgNormal.z() <= Z_THRESH ? HIGH_COST : LOW_COST;
+		// std::int8_t cost = avgNormal.z() <= Z_THRESH ? HIGH_COST : LOW_COST;
+
+		// PERCENTAGE ALGORITHM
+		std::size_t pointsHigh = boost::range::count_if(bin, [](BinEntry const& entry) {
+                    return (entry.normalInCamera.z()) <= Z_THRESH;
+                });
+                double percent = static_cast<double>(pointsHigh) / static_cast<double>(bin.size());
+				std::cout << "Points High: " << pointsHigh << " Bin Size: " << bin.size() << " Percent: " << percent << "\n";
+                std::int8_t cost = percent > Z_PERCENT ? HIGH_COST : LOW_COST;
+
+
 		cell = cost;
 	}
 }
@@ -236,6 +249,84 @@ void keyboardEventOccurred (const pcl::visualization::KeyboardEvent &event,
 
 		++pcd_index;
 		pcd_index %= FILE_NAME.size();
+	}
+
+	// EDIT Z_PERCENT
+	if(event.getKeySym() == "w" && event.keyDown()){
+		Z_PERCENT += 0.01;
+		std::cout << "Z_PERCENT changed to: " << Z_PERCENT << "\n";
+		visualizer_pcd = stripNormals(pcd);
+
+		CostMap cm{};
+		cm.width = std::ceil(GRID_WIDTH / GRID_RESOLUTION);
+		cm.height = std::ceil(GRID_HEIGHT / GRID_RESOLUTION);
+		cm.x = 0;
+		cm.y = 0;
+		cm.data.resize(cm.width * cm.height);
+
+		std::cout << "Filling in Cost Map...\n";
+		fillInCostMap(cm, pcd);
+		std::cout << "Done Filling in Cost Map...\n";
+
+		grid_pcd = createGridPcd(cm);
+	}
+
+	else if(event.getKeySym() == "s" && event.keyDown()){
+		Z_PERCENT -= 0.01;
+		std::cout << "Z_PERCENT changed to: " << Z_PERCENT << "\n";
+		visualizer_pcd = stripNormals(pcd);
+
+		CostMap cm{};
+		cm.width = std::ceil(GRID_WIDTH / GRID_RESOLUTION);
+		cm.height = std::ceil(GRID_HEIGHT / GRID_RESOLUTION);
+		cm.x = 0;
+		cm.y = 0;
+		cm.data.resize(cm.width * cm.height);
+
+		std::cout << "Filling in Cost Map...\n";
+		fillInCostMap(cm, pcd);
+		std::cout << "Done Filling in Cost Map...\n";
+
+		grid_pcd = createGridPcd(cm);
+	}
+
+	// EDIT Z_THRESH
+		if(event.getKeySym() == "i" && event.keyDown()){
+		Z_THRESH += 0.01;
+		std::cout << "Z_THRESH changed to: " << Z_THRESH << "\n";
+		visualizer_pcd = stripNormals(pcd);
+
+		CostMap cm{};
+		cm.width = std::ceil(GRID_WIDTH / GRID_RESOLUTION);
+		cm.height = std::ceil(GRID_HEIGHT / GRID_RESOLUTION);
+		cm.x = 0;
+		cm.y = 0;
+		cm.data.resize(cm.width * cm.height);
+
+		std::cout << "Filling in Cost Map...\n";
+		fillInCostMap(cm, pcd);
+		std::cout << "Done Filling in Cost Map...\n";
+
+		grid_pcd = createGridPcd(cm);
+	}
+
+	else if(event.getKeySym() == "k" && event.keyDown()){
+		Z_THRESH -= 0.01;
+		std::cout << "Z_THRESH changed to: " << Z_THRESH << "\n";
+		visualizer_pcd = stripNormals(pcd);
+
+		CostMap cm{};
+		cm.width = std::ceil(GRID_WIDTH / GRID_RESOLUTION);
+		cm.height = std::ceil(GRID_HEIGHT / GRID_RESOLUTION);
+		cm.x = 0;
+		cm.y = 0;
+		cm.data.resize(cm.width * cm.height);
+
+		std::cout << "Filling in Cost Map...\n";
+		fillInCostMap(cm, pcd);
+		std::cout << "Done Filling in Cost Map...\n";
+
+		grid_pcd = createGridPcd(cm);
 	}
 }
 
